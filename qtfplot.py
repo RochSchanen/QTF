@@ -2,6 +2,10 @@
 # create: 2023 04 24
 # author: Roch Schanen
 
+DEBUG_FLAGS = []
+
+fp = "./QTF_TO_20230425T000000.dat"
+
 #####################################################################
 
 # LIBRARIES
@@ -12,39 +16,19 @@ from time import sleep, time, strftime, localtime
 from datetime import datetime
 
 # from package: "https://numpy.org/"
-from numpy import linspace, logspace
-from numpy import ceil, floor
-from numpy import log, log10, exp
-# from numpy import full
-# from numpy import copy
-# from numpy import diff
 from numpy import array
-# from numpy import invert
-# from numpy import arange
-# from numpy import asarray
-# from numpy import gradient
-# from numpy import meshgrid
-# from numpy import sum as SUM
-# from numpy import multiply as MLT
-# from numpy.random import rand
-
-# from package "https://python-pillow.org/"
-# from PIL import Image
-# from PIL import ImageDraw
-
-# from package "https://scipy.org/"
-# from scipy.constants import epsilon_0 as EPS0
+from numpy import loadtxt
+from numpy import ceil, floor
+from numpy import log, log10, exp, square
+from numpy import linspace, logspace
 
 # from package: "https://matplotlib.org/"
-# from matplotlib.pyplot import sca
-# from matplotlib.pyplot import Circle
 from matplotlib.pyplot import figure
-# from matplotlib.pyplot import Rectangle
 from matplotlib.pyplot import fignum_exists
-# from matplotlib.pyplot import cm
 from matplotlib.backends.backend_pdf import PdfPages
 
-DEBUG_FLAGS = []
+##########################                                #######
+from scipy.optimize import curve_fit as fit
 
 def debug(*flags):
     for f in flags: 
@@ -76,54 +60,56 @@ def selectfigure(name):
 def headerText(text, fg):
     w, h = array([1, 1 / 1.4143])*0.7
     x, y = (1-w)/2, (1-h)/2
-    tx = fg.text(x+w/2, 3*y/2+h, text)
+    # tx = fg.text(x+w/2, 3*y/2+h, text)
+    tx = fg.text(x, 3*y/2+h, text)
     tx.set_fontfamily('monospace')
-    tx.set_horizontalalignment('centre')
-    tx.set_verticalalignment('centre')
-    tx.set_fontsize('large')
+    tx.set_horizontalalignment('left')
+    tx.set_verticalalignment('center')
+    tx.set_fontsize("small")
     return tx
 
 def footerText(text, fg):
     w, h = array([1, 1 / 1.4143])*0.7
     x, y = (1-w)/2, (1-h)/2
-    tx = fg.text(x+w/2, y/2, text)
+    # tx = fg.text(x+w/2, y/2, text)
+    tx = fg.text(x, y/2, text)
     tx.set_fontfamily('monospace')
-    tx.set_horizontalalignment('centre')
-    tx.set_verticalalignment('centre')
-    tx.set_fontsize('large')
+    tx.set_horizontalalignment('left')
+    tx.set_verticalalignment('center')
+    tx.set_fontsize("small")
     return tx
 
+def _getTickIntervals(start, stop, ticks):
+
+    ln10 = 2.3025850929940459
+
+    # trial table
+    T = [0.010, 0.020, 0.025, 0.050,
+         0.100, 0.200, 0.250, 0.500,
+         1.000, 2.000, 2.500, 5.000]
+
+    # corresponding tick sub division intervals
+    S = [5.0,   4.0,   5.0,   5.0,
+         5.0,   4.0,   5.0,   5.0,
+         5.0,   4.0,   5.0,   5.0]
+
+    span = stop - start                         # get span
+    d = exp(ln10 * floor(log10(span)))          # find decade
+    span /= d                                   # re-scale
+
+    # find number of ticks below and closest to n
+    i, m = 0, floor(span / T[0])                # start up
+    while m > ticks:                            # next try?
+        i, m = i + 1, floor(span / T[i + 1])    # try again 
+
+    # re-scale
+    mi =  d * T[i]   # main tick intervals
+    si = mi / S[i]   # sub tick intervals
+
+    # done
+    return mi, si
+
 def _getTickPositions(start, stop, ticks):
-
-    def _getTickIntervals(start, stop, ticks):
-
-        ln10 = 2.3025850929940459
-
-        # trial table
-        T = [0.010, 0.020, 0.025, 0.050,
-             0.100, 0.200, 0.250, 0.500,
-             1.000, 2.000, 2.500, 5.000]
-
-        # corresponding tick sub division intervals
-        S = [5.0,   4.0,   5.0,   5.0,
-             5.0,   4.0,   5.0,   5.0,
-             5.0,   4.0,   5.0,   5.0]
-
-        span = stop - start                         # get span
-        d = exp(ln10 * floor(log10(span)))          # find decade
-        span /= d                                   # re-scale
-
-        # find number of ticks below and closest to n
-        i, m = 0, floor(span / T[0])                # start up
-        while m > ticks:                            # next try?
-            i, m = i + 1, floor(span / T[i + 1])    # try again 
-
-        # re-scale
-        mi =  d * T[i]   # main tick intervals
-        si = mi / S[i]   # sub tick intervals
-
-        # done
-        return mi, si
 
     # get intervals
     mi, si = _getTickIntervals(start, stop, ticks)
@@ -164,63 +150,147 @@ class Document():
         self._DOC.close()
         return
 
-#####################################################################
-
-fp = "./TO_QTF_20230424T135609.dat"
-
-from numpy import loadtxt
-
-# s = "13:56:15.659472"
-
 def seconds(s):
     t =  float(s[0:2])*3600
     t += float(s[3:5])*60
     t += float(s[6: ])*1
     return t
 
-codic = {
-    0: seconds,
-    1: float,
-    2: float,
-    3: float,
-}
+# in-phase fitting function
+def FX(t, p, w, h, o):
+    x = (t-p)/w
+    y = h/(1+square(x))+o
+    return y
 
-data = loadtxt(fp, converters = codic)
+# quadrature fitting function
+def FY(t, p, w, h, o):
+    x = (t-p)/w
+    y = -x*h/(1+square(x))+o
+    return y
+
+D = Document()
+D.opendocument("./display.pdf")
+
+data = loadtxt(fp,
+    converters = {
+        0: seconds,
+        1: float,
+        2: float,
+        3: float,
+    })
 
 T = data[:, 0]
 F = data[:, 1]
 X = data[:, 2]
 Y = data[:, 3]
 
-D = Document()
-D.opendocument("./display.pdf")
-fg, ax = selectfigure("displayfigure")
+fg, ax = selectfigure("frequency")
 
+# get span
 fs, fe = min(F), max(F)
+
+# fix X labels and ticks
 xf =  0.1*(fe-fs)
 ax.set_xlim(fs-xf, fe+xf)
 MX, SX = _getTickPositions(fs-xf, fe+xf, 7)
 ax.set_xticks(MX)
 ax.set_xticks(SX, minor = True)
+
+# get span
+xs, xe = min(X), max(X)
+ys, ye = min(Y), max(Y)
+zs, ze = min(xs, ys), max(xe, ye)
+
+# get engineering units
+f, s = {
+     0: (1E+00,  ""),
+    -1: (1E+03, "m"),
+    -2: (1E+06, "µ"),
+    -3: (1E+09, "n"),
+    -4: (1E+12, "p"),
+    +1: (1E-03, "K"),
+    +2: (1E-06, "M"),
+    +3: (1E-09, "G"),
+    +4: (1E-12, "T"),
+}[int(floor(log10(ze-zs)/3))]
+
+# adjust exponent
+X, Y, zs, ze = X*f, Y*f, zs*f, ze*f
+
+# fix Y labels and ticks
+dz =  0.1*(ze-zs)
+ax.set_ylim(zs-dz, ze+dz)
+MY, SY = _getTickPositions(zs-dz, ze+dz, 9)
+ax.set_yticks(MY)
+ax.set_yticks(SY, minor = True)
+
+# fix grid style
 ax.tick_params(axis = "both", which = "both", direction = "in")
 ax.grid("on", which = "minor", linewidth = 0.3)
 ax.grid("on", which = "major", linewidth = 0.6)
 
-# xs, xe = min(X), max(X)
-# ys, ye = min(Y), max(Y)
+ax.set_xlabel(f"Frequency / Hz")
+ax.set_ylabel(f"Signal / {s}V")
 
-# xf =  0.1*(fe-fs)
-# ax.set_xlim(fs-xf, fe+xf)
-# MX, SX = _getTickPositions(fs-xf, fe+xf, 7)
-# ax.set_xticks(MX)
-# ax.set_xticks(SX, minor = True)
-# ax.tick_params(axis = "both", which = "both", direction = "in")
-# ax.grid("on", which = "minor", linewidth = 0.3)
-# ax.grid("on", which = "major", linewidth = 0.6)
+# ax.plot(F, X, 'b.-.', linewidth = 0.600)
+# ax.plot(F, Y, 'r.-.', linewidth = 0.600)
+ax.plot(F, X, 'b.', linewidth = 0.600)
+ax.plot(F, Y, 'r.', linewidth = 0.600)
 
-ax.plot(F, X, 'b.-', linewidth = 0.600)
-ax.plot(F, Y, 'r.-', linewidth = 0.600)
+# define starting parameters and fit
+parS = [32670.0, 30.0, 0.014, 0.000]
+parX, parXC = fit(FX, F, X, p0 = parS)
+parY, parYC = fit(FY, F, Y, p0 = parS)
 
-D.exportfigure("displayfigure")
+ax.plot(F, FX(F, *parX), "--k", linewidth = 0.6)
+ax.plot(F, FY(F, *parY), "--k", linewidth = 0.6)
+
+t = ""
+t += f"position :{parX[0]:12.3f}Hz, {parY[0]:12.3f}Hz\n"
+t += f"width    :{parX[1]:12.3f}Hz, {parY[1]:12.3f}Hz\n"
+t += f"height   :{parX[2]:12.3f}{s}V, {parY[2]:12.3f}{s}V\n"
+t += f"offset   :{parX[3]:12.3f}{s}V, {parY[3]:12.3f}{s}V\n"
+footerText(t, fg)
+
+fh = open(fp, 'r')
+L = fh.readlines()
+fh.close()
+
+t = ""
+for l in L[:9]:
+    t += l[2:]
+headerText(t, fg)
+
+fg, ax = selectfigure("XY")
+
+# scale units
+xs, xe, ys, ye = xs*f, xe*f, ys*f, ye*f 
+
+# fix X labels and ticks
+dx =  0.1*(xe-xs)
+ax.set_xlim(xs-dx, xe+dx)
+MX, SX = _getTickPositions(xs-dx, xe+dx, 7)
+ax.set_xticks(MX)
+ax.set_xticks(SX, minor = True)
+
+# fix Y labels and ticks
+dy =  0.1*(ye-ys)
+ax.set_ylim(ys-dy, ye+dy)
+MY, SY = _getTickPositions(ys-dy, ye+dy, 7)
+ax.set_yticks(MY)
+ax.set_yticks(SY, minor = True)
+
+# fix grid style
+ax.tick_params(axis = "both", which = "both", direction = "in")
+ax.grid("on", which = "minor", linewidth = 0.3)
+ax.grid("on", which = "major", linewidth = 0.6)
+
+ax.set_xlabel(f"X signal / {s}V")
+ax.set_ylabel(f"Y Signal / {s}V")
+
+ax.plot(X, Y, 'k.')
+
+D.exportfigure("frequency")
+D.exportfigure("XY")
+
 D.closedocument()
-

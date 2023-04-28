@@ -6,12 +6,26 @@
 # todo: add more device setup parameters
 # todo: add setup per forks
 
+#                                                         # LIBRARIES
 
+# standard libraries
+from os import remove
+from sys import exit
+from datetime import datetime
+from time import sleep, time, strftime, localtime
 
+# from package: "https://numpy.org/"
+from numpy import linspace, logspace
+from numpy import array
+
+# from package: "https://matplotlib.org/"
+from matplotlib.pyplot import figure, close
+from matplotlib.pyplot import fignum_exists
+from matplotlib.backends.backend_pdf import PdfPages
 
 #####################################################################
 
-# debug
+#                                                             # SETUP
 
 DEBUG_FLAGS = [ # all flags must be upper case
     # "ALL",
@@ -20,69 +34,55 @@ DEBUG_FLAGS = [ # all flags must be upper case
     # "SHOWDATA",
     ]
 
-# setup
+# GPIB
 
 ga = f"GPIB0::10::INSTR"
 la = f"GPIB0::14::INSTR"
 
-# scan
+# SCAN
 
-fp = "./TO_QTF_"
-fs = 32640  # start frequency
-fe = 32700  # stop frequency
-fn = 100    # number of steps
-ti = 300    # full time interval
-dl = 3      # initial delay [fast sweep]
-da = 1.000  # drive amplitude
+fp = "./QTF_TO_"
+fs = 32640      # start frequency
+fe = 32700      # stop frequency
+fn = 100        # number of steps
+ti = 100        # full time interval
+dl = 5          # initial delay [fast sweep]
+da = 1.000      # drive amplitude
+at = "-20dB"    # attenuator value
+gn = 1E5        # I/V gain
 
 #####################################################################
-
-# LIBRARIES
-
-# standard libraries
-from sys import exit
-from datetime import datetime
-from time import sleep, time, strftime, localtime
-
-# from package: "https://numpy.org/"
-from numpy import linspace, logspace
-# from numpy import ceil, floor
-# from numpy import log, log10, exp
-# from numpy import full
-# from numpy import copy
-# from numpy import diff
-from numpy import array
-# from numpy import invert
-# from numpy import arange
-# from numpy import asarray
-# from numpy import gradient
-# from numpy import meshgrid
-# from numpy import sum as SUM
-# from numpy import multiply as MLT
-# from numpy.random import rand
-
-# from package "https://python-pillow.org/"
-# from PIL import Image
-# from PIL import ImageDraw
-
-# from package "https://scipy.org/"
-# from scipy.constants import epsilon_0 as EPS0
-
-# from package: "https://matplotlib.org/"
-# from matplotlib.pyplot import sca
-# from matplotlib.pyplot import Circle
-from matplotlib.pyplot import figure
-# from matplotlib.pyplot import Rectangle
-from matplotlib.pyplot import fignum_exists
-# from matplotlib.pyplot import cm
-from matplotlib.backends.backend_pdf import PdfPages
 
 #                                                            # HEADER
 
 HEADER_TEXT = ""
+
 def writeheadertext(t):
+    global HEADER_TEXT
     HEADER_TEXT += f"# {t}\n"
     return
+
+def flushheader(fh):
+    fh.write(HEADER_TEXT)
+    return
+
+# get file time stamp
+ts = strftime("%Y%m%dT%H%M%S", localtime())
+ts = "20230425T000000"
+
+# build filename
+fpn = f"{fp}{ts}.dat"
+
+writeheadertext(f"file         :  {fpn.split('/')[-1]}")
+writeheadertext(f"start        :  {fs}Hz")
+writeheadertext(f"stop         :  {fe}Hz")
+writeheadertext(f"steps        :  {fn}")
+writeheadertext(f"delay        :  {dl}s")
+writeheadertext(f"duration     :  {ti}s")
+writeheadertext(f"attenuation  :  {at}")
+writeheadertext(f"gain         :  {gn:.0E}V/A")
+writeheadertext(f"drive        :  {da}V")
+
 #                                                             # DEBUG
 
 def debug(*flags):
@@ -167,70 +167,10 @@ def headerText(text, fg):
     x, y = (1-w)/2, (1-h)/2
     tx = fg.text(x+w/2, 3*y/2+h, text)
     tx.set_fontfamily('monospace')
-    tx.set_horizontalalignment('centre')
-    tx.set_verticalalignment('centre')
-    tx.set_fontsize('large')
+    tx.set_horizontalalignment('center')
+    tx.set_verticalalignment('center')
+    tx.set_fontsize("large")
     return tx
-
-def footerText(text, fg):
-    w, h = array([1, 1 / 1.4143])*0.7
-    x, y = (1-w)/2, (1-h)/2
-    tx = fg.text(x+w/2, y/2, text)
-    tx.set_fontfamily('monospace')
-    tx.set_horizontalalignment('centre')
-    tx.set_verticalalignment('centre')
-    tx.set_fontsize('large')
-    return tx
-
-def _getTickPositions(start, stop, ticks):
-
-    def _getTickIntervals(start, stop, ticks):
-
-        ln10 = 2.3025850929940459
-
-        # trial table
-        T = [0.010, 0.020, 0.025, 0.050,
-             0.100, 0.200, 0.250, 0.500,
-             1.000, 2.000, 2.500, 5.000]
-
-        # corresponding tick sub division intervals
-        S = [5.0,   4.0,   5.0,   5.0,
-             5.0,   4.0,   5.0,   5.0,
-             5.0,   4.0,   5.0,   5.0]
-
-        span = stop - start                         # get span
-        d = exp(ln10 * floor(log10(span)))          # find decade
-        span /= d                                   # re-scale
-
-        # find number of ticks below and closest to n
-        i, m = 0, floor(span / T[0])                # start up
-        while m > ticks:                            # next try?
-            i, m = i + 1, floor(span / T[i + 1])    # try again 
-
-        # re-scale
-        mi =  d * T[i]   # main tick intervals
-        si = mi / S[i]   # sub tick intervals
-
-        # done
-        return mi, si
-
-    # get intervals
-    mi, si = _getTickIntervals(start, stop, ticks)
-
-    # main ticks (round is the built-in python version)
-    ns = ceil(start / mi - 0.001) * mi  # start
-    ne = floor(stop / mi + 0.001) * mi  # end
-    p  = round((ne - ns) / mi) + 1      # fail safe
-    M  = linspace(ns, ne, p)            # main positions
-
-    # sub ticks (round is the built-in python version)
-    ns = ceil(start / si + 0.001) * si  # start
-    ne = floor(stop / si - 0.001) * si  # end
-    p  = round((ne - ns) / si) + 1      # fail safe
-    S  = linspace(ns, ne, p)            # sub positions
-
-    # done
-    return M, S
 
 #                                                          # DOCUMENT
 
@@ -238,7 +178,7 @@ class Document():
 
     def __init__(self, pathname = None):
         if pathname is not None:
-            self._DOC = self.opendocument(pathname)
+            self.opendocument(pathname)
         return
 
     def opendocument(self, pathname):
@@ -255,25 +195,30 @@ class Document():
         self._DOC.close()
         return
 
-#                                                              # time
-
 #####################################################################
 
-# get file time stamp
-ts = strftime("%Y%m%dT%H%M%S", localtime())
 # open file
-fh = open(f"{fp}{ts}.dat", 'w')
+fh = open(fpn, 'w')
+
+# flush header
+flushheader(fh)
+
 # init tables
 f, T, F, X, Y = fs, [], [], [], []
 df, dt = (fe-fs)/(fn-1), ti/fn
+
 # setup devices
 set_generator_amplitude(da)
 set_generator_frequency(f)
 set_generator_output("on")
 sleep(dl)
+
 # start measurement loop
-while f < fe:
+for i in range(fn):
     
+    # compute next frequency set point
+    f = fs+i*df
+
     # set next frequency
     set_generator_frequency(f)
     
@@ -294,22 +239,25 @@ while f < fe:
     ts = datetime.now().strftime('%H:%M:%S.%f')
     
     # export data
-    w = f"{ts}\t{f:.6f}\t{x:+.6E}\t{y:+.6E}\n"
+    w = f"{ts[:-3]}\t{f:.6f}\t{x:+.6E}\t{y:+.6E}\n"
     if debug("showdata"): print(w, end = "")
     fh.write(w)
     fh.flush()
     
-    # export figure    
+    # update display figure
     xf =  0.1*(fe-fs)
     D = Document()
     D.opendocument("./display.pdf")
-    fg, ax = selectfigure("figurename")
+    fg, ax = selectfigure("fig")
     ax.set_xlim(fs-xf, fe+xf)
     ax.plot(F, X, 'b.-', linewidth = 0.300)
     ax.plot(F, Y, 'r.-', linewidth = 0.300)
-    D.exportfigure("figurename")
+    headerText(fpn, fg)
+    D.exportfigure("fig")
     D.closedocument()
-    
+    # close to prevent overwriting
+    close(fg)
+
     # setup next point
     f += df
 
