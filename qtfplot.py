@@ -16,6 +16,7 @@ from time import sleep, time, strftime, localtime
 from datetime import datetime
 
 # from package: "https://numpy.org/"
+from numpy import pi, cos, sin
 from numpy import array
 from numpy import loadtxt
 from numpy import ceil, floor
@@ -27,8 +28,12 @@ from matplotlib.pyplot import figure
 from matplotlib.pyplot import fignum_exists
 from matplotlib.backends.backend_pdf import PdfPages
 
-##########################                                #######
+# from package: "https://scipy.org/"
 from scipy.optimize import curve_fit as fit
+
+#####################################################################
+
+# LOCAL FUNCTIONS AND CLASSES
 
 def debug(*flags):
     for f in flags: 
@@ -168,8 +173,9 @@ def FY(t, p, w, h, o):
     y = -x*h/(1+square(x))+o
     return y
 
-D = Document()
-D.opendocument("./display.pdf")
+#####################################################################
+
+# IMPORT DATA
 
 data = loadtxt(fp,
     converters = {
@@ -184,21 +190,21 @@ F = data[:, 1]
 X = data[:, 2]
 Y = data[:, 3]
 
-fg, ax = selectfigure("frequency")
+# rotate by an angle "a"
+a_deg   = 0.0
+a_rad   = a_deg*pi/180
+xr      = X*cos(a_rad)-Y*sin(a_rad)
+yr      = X*sin(a_rad)+Y*cos(a_rad)
+X, Y    = xr, yr
 
-# get span
+#####################################################################
+
+# COMPUTE DATA SPAN AND ENGINEERING UNITS AND SHIFT EXPONENT
+
 fs, fe = min(F), max(F)
-
-# fix X labels and ticks
-xf =  0.1*(fe-fs)
-ax.set_xlim(fs-xf, fe+xf)
-MX, SX = _getTickPositions(fs-xf, fe+xf, 7)
-ax.set_xticks(MX)
-ax.set_xticks(SX, minor = True)
-
-# get span
 xs, xe = min(X), max(X)
 ys, ye = min(Y), max(Y)
+
 zs, ze = min(xs, ys), max(xe, ye)
 
 # get engineering units
@@ -214,8 +220,24 @@ f, s = {
     +4: (1E-12, "T"),
 }[int(floor(log10(ze-zs)/3))]
 
-# adjust exponent
-X, Y, zs, ze = X*f, Y*f, zs*f, ze*f
+# re-scale data and span limits
+X, Y    =  X*f,  Y*f
+xs, xe, = xs*f, xe*f
+ys, ye  = ys*f, ye*f 
+zs, ze  = zs*f, ze*f
+
+#####################################################################
+
+# FIGURE "FREQUENCY"
+
+fg, ax = selectfigure("frequency")
+
+# fix X labels and ticks
+xf =  0.1*(fe-fs)
+ax.set_xlim(fs-xf, fe+xf)
+MX, SX = _getTickPositions(fs-xf, fe+xf, 7)
+ax.set_xticks(MX)
+ax.set_xticks(SX, minor = True)
 
 # fix Y labels and ticks
 dz =  0.1*(ze-zs)
@@ -229,11 +251,11 @@ ax.tick_params(axis = "both", which = "both", direction = "in")
 ax.grid("on", which = "minor", linewidth = 0.3)
 ax.grid("on", which = "major", linewidth = 0.6)
 
+# set axes labels
 ax.set_xlabel(f"Frequency / Hz")
 ax.set_ylabel(f"Signal / {s}V")
 
-# ax.plot(F, X, 'b.-.', linewidth = 0.600)
-# ax.plot(F, Y, 'r.-.', linewidth = 0.600)
+# plot data
 ax.plot(F, X, 'b.', linewidth = 0.600)
 ax.plot(F, Y, 'r.', linewidth = 0.600)
 
@@ -242,29 +264,33 @@ parS = [32670.0, 30.0, 0.014, 0.000]
 parX, parXC = fit(FX, F, X, p0 = parS)
 parY, parYC = fit(FY, F, Y, p0 = parS)
 
+# plot fits
 ax.plot(F, FX(F, *parX), "--k", linewidth = 0.6)
 ax.plot(F, FY(F, *parY), "--k", linewidth = 0.6)
 
+# import header from file and export to header text
+fh = open(fp, 'r')
+L = fh.readlines()
+fh.close()
 t = ""
+for l in L[:10]:
+    t += l[2:]
+# t += f"\nrotation : {a_deg} degrees"
+headerText(t, fg)
+
+# export fit results to footer text
+t =  f"                   phase      quadrature\n\n"
 t += f"position :{parX[0]:12.3f}Hz, {parY[0]:12.3f}Hz\n"
 t += f"width    :{parX[1]:12.3f}Hz, {parY[1]:12.3f}Hz\n"
 t += f"height   :{parX[2]:12.3f}{s}V, {parY[2]:12.3f}{s}V\n"
 t += f"offset   :{parX[3]:12.3f}{s}V, {parY[3]:12.3f}{s}V\n"
 footerText(t, fg)
 
-fh = open(fp, 'r')
-L = fh.readlines()
-fh.close()
+#####################################################################
 
-t = ""
-for l in L[:9]:
-    t += l[2:]
-headerText(t, fg)
+# FIGURE "XY"
 
 fg, ax = selectfigure("XY")
-
-# scale units
-xs, xe, ys, ye = xs*f, xe*f, ys*f, ye*f 
 
 # fix X labels and ticks
 dx =  0.1*(xe-xs)
@@ -285,12 +311,21 @@ ax.tick_params(axis = "both", which = "both", direction = "in")
 ax.grid("on", which = "minor", linewidth = 0.3)
 ax.grid("on", which = "major", linewidth = 0.6)
 
+# set axes labels
 ax.set_xlabel(f"X signal / {s}V")
 ax.set_ylabel(f"Y Signal / {s}V")
 
+# plot data
 ax.plot(X, Y, 'k.')
 
+#####################################################################
+
+# create and export pdf document
+
+D = Document()
+D.opendocument("./display.pdf")
+
 D.exportfigure("frequency")
-D.exportfigure("XY")
+# D.exportfigure("XY")
 
 D.closedocument()

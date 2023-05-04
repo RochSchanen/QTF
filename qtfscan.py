@@ -9,8 +9,8 @@
 #                                                         # LIBRARIES
 
 # standard libraries
-from os import remove
 from sys import exit
+from os import remove
 from datetime import datetime
 from time import sleep, time, strftime, localtime
 
@@ -141,6 +141,13 @@ def get_lockin_XY():
     X, Y = s.strip().split(",")
     return float(X), float(Y)
 
+def get_lockin_phase():
+    w = f"PHAS?"
+    if debug("gpib"): print(f"{la} query '{w}'")
+    s = lh.query(w)
+    P = s.strip()
+    return float(P)
+
 #                                                            # FIGURE
 
 def selectfigure(name):
@@ -196,6 +203,10 @@ class Document():
         return
 
 #####################################################################
+
+# add extra configuration to data header
+p = get_lockin_phase()
+writeheadertext(f"phase        :  {p}deg")
 
 # open file
 fh = open(fpn, 'w')
