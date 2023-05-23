@@ -68,7 +68,7 @@ def flushheader(fh):
 
 # get file time stamp
 ts = strftime("%Y%m%dT%H%M%S", localtime())
-ts = "20230425T000000"
+# ts = "20230425T000000"
 
 # build filename
 fpn = f"{fp}{ts}.dat"

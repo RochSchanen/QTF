@@ -2,9 +2,9 @@
 # create: 2023 04 24
 # author: Roch Schanen
 
-DEBUG_FLAGS = []
-
-fp = "./QTF_TO_20230425T000000.dat"
+DEBUG_FLAGS = [
+    # "ALL",
+    ]
 
 #####################################################################
 
@@ -30,6 +30,28 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 # from package: "https://scipy.org/"
 from scipy.optimize import curve_fit as fit
+
+#####################################################################
+
+import wx
+
+a = wx.App()
+f = wx.Frame()
+
+d = wx.FileDialog(f,
+    message     = "Open",
+    wildcard    = "data files (*.dat)|*.dat", 
+    style       = wx.FD_OPEN
+                | wx.FD_FILE_MUST_EXIST,
+                # | wx.FD_MULTIPLE,
+    )
+
+d.ShowModal()
+# fp = d.GetPaths()
+fp = d.GetPath()
+d.Destroy()
+
+# fp = "./QTF_TO_20230515T122609.dat"
 
 #####################################################################
 
@@ -170,7 +192,8 @@ def FX(t, p, w, h, o):
 # quadrature fitting function
 def FY(t, p, w, h, o):
     x = (t-p)/w
-    y = -x*h/(1+square(x))+o
+    # y = -x*h/(1+square(x))+o
+    y = +x*h/(1+square(x))+o
     return y
 
 #####################################################################
@@ -190,12 +213,17 @@ F = data[:, 1]
 X = data[:, 2]
 Y = data[:, 3]
 
-# rotate by an angle "a"
+#####################################################################
+
+# ROTATE BY AN ANGLE "A" BEFORE DISPLAY
+
 a_deg   = 0.0
 a_rad   = a_deg*pi/180
 xr      = X*cos(a_rad)-Y*sin(a_rad)
 yr      = X*sin(a_rad)+Y*cos(a_rad)
 X, Y    = xr, yr
+# To adjust the lockin, substract the
+# value of a from the lockin phase.
 
 #####################################################################
 
@@ -298,6 +326,7 @@ ax.set_xlim(xs-dx, xe+dx)
 MX, SX = _getTickPositions(xs-dx, xe+dx, 7)
 ax.set_xticks(MX)
 ax.set_xticks(SX, minor = True)
+
 
 # fix Y labels and ticks
 dy =  0.1*(ye-ys)
