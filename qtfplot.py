@@ -33,25 +33,25 @@ from scipy.optimize import curve_fit as fit
 
 #####################################################################
 
-import wx
+# import wx
 
-a = wx.App()
-f = wx.Frame()
+# a = wx.App()
+# f = wx.Frame()
 
-d = wx.FileDialog(f,
-    message     = "Open",
-    wildcard    = "data files (*.dat)|*.dat", 
-    style       = wx.FD_OPEN
-                | wx.FD_FILE_MUST_EXIST,
-                # | wx.FD_MULTIPLE,
-    )
+# d = wx.FileDialog(f,
+#     message     = "Open",
+#     wildcard    = "data files (*.dat)|*.dat", 
+#     style       = wx.FD_OPEN
+#                 | wx.FD_FILE_MUST_EXIST,
+#                 # | wx.FD_MULTIPLE,
+#     )
 
-d.ShowModal()
-# fp = d.GetPaths()
-fp = d.GetPath()
-d.Destroy()
+# d.ShowModal()
+# # fp = d.GetPaths()
+# fp = d.GetPath()
+# d.Destroy()
 
-# fp = "./QTF_TO_20230515T122609.dat"
+fp = "./QTF_TO_20230705T090205.dat"
 
 #####################################################################
 
@@ -192,8 +192,8 @@ def FX(t, p, w, h, o):
 # quadrature fitting function
 def FY(t, p, w, h, o):
     x = (t-p)/w
-    # y = -x*h/(1+square(x))+o
-    y = +x*h/(1+square(x))+o
+    y = -x*h/(1+square(x))+o
+    # y = +x*h/(1+square(x))+o
     return y
 
 #####################################################################
@@ -217,7 +217,7 @@ Y = data[:, 3]
 
 # ROTATE BY AN ANGLE "A" BEFORE DISPLAY
 
-a_deg   = 0.0
+a_deg   = 20.0
 a_rad   = a_deg*pi/180
 xr      = X*cos(a_rad)-Y*sin(a_rad)
 yr      = X*sin(a_rad)+Y*cos(a_rad)
@@ -288,9 +288,13 @@ ax.plot(F, X, 'b.', linewidth = 0.600)
 ax.plot(F, Y, 'r.', linewidth = 0.600)
 
 # define starting parameters and fit
-parS = [32670.0, 30.0, 0.014, 0.000]
-parX, parXC = fit(FX, F, X, p0 = parS)
-parY, parYC = fit(FY, F, Y, p0 = parS)
+parSx = [32705.0, 5.0, 1.0,  2.0]
+parSy = [32705.0, 5.0, 1.0, 18.0]
+
+# parX = parSx
+parX, parXC = fit(FX, F, X, p0 = parSx)
+# parY = parSy
+parY, parYC = fit(FY, F, Y, p0 = parSy)
 
 # plot fits
 ax.plot(F, FX(F, *parX), "--k", linewidth = 0.6)
@@ -303,7 +307,7 @@ fh.close()
 t = ""
 for l in L[:10]:
     t += l[2:]
-# t += f"\nrotation : {a_deg} degrees"
+t += f"\nrotation : {-a_deg} degrees"
 headerText(t, fg)
 
 # export fit results to footer text

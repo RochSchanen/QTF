@@ -42,13 +42,13 @@ la = f"GPIB0::14::INSTR"
 # SCAN
 
 fp = "./QTF_TO_"
-fs = 32640      # start frequency
-fe = 32700      # stop frequency
-fn = 100        # number of steps
+fs = 32680      # start frequency
+fe = 32740      # stop frequency
+fn = 200        # number of steps
 ti = 100        # full time interval
 dl = 5          # initial delay [fast sweep]
-da = 1.000      # drive amplitude
-at = "-20dB"    # attenuator value
+da = 7.000      # drive amplitude
+at = "0dB"      # attenuator value
 gn = 1E5        # I/V gain
 
 #####################################################################
@@ -271,6 +271,10 @@ for i in range(fn):
 
     # setup next point
     f += df
+
+    # running flag
+    print(".", end = "")
+    if (i+1) % 25 == 0: print()
 
 # shutdown
 set_generator_output("off")
